@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sluta Snusa — Progress Tracker</title>
+<style>
+  :root{
+    --bg:#f6fbff; --card:#ffffff; --muted:#667085; --accent:#2b9bd7;
+    --success:#2aa66a; --danger:#e05b5b; --glass: rgba(255,255,255,.6);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  html,body{height:100%; margin:0; background:linear-gradient(180deg,#f6fbff 0%, #ffffff 100%); color:#0f1724}
+  .wrap{max-width:940px;margin:28px auto;padding:18px}
+  header{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+  .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#6ad4ff);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px}
+  h1{font-size:20px;margin:0}
+  .grid{display:grid;grid-template-columns:1fr 360px;gap:16px}
+  @media (max-width:820px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(20,30,40,0.06)}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  input[type="date"], input[type="number"], select{width:100%;padding:8px;border-radius:8px;border:1px solid #e6eef8;background:#fbfdff}
+  .row{display:flex;gap:8px}
+  .btn{background:var(--accent);color:#fff;padding:8px 12px;border-radius:10px;border:none;cursor:pointer}
+  .small{font-size:13px;color:var(--muted)}
+  .stat{display:flex;gap:12px;align-items:center}
+  .big{font-size:28px;font-weight:700}
+  .muted{color:var(--muted);font-size:13px}
+  .mood-grid{display:flex;gap:8px;flex-wrap:wrap}
+  .mood-btn{padding:8px 10px;border-radius:10px;border:1px solid #e6eef8;background:#fbfdff;cursor:pointer}
+  canvas{width:100%;height:220px;border-radius:8px;background:linear-gradient(180deg,#fff,#f8fbff);display:block}
+  .milestones{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+  .mile{padding:8px 10px;border-radius:10px;border:1px solid #e6eef8;background:#fbfdff;font-size:13px}
+  .mile.done{background:linear-gradient(90deg,var(--success),#6be0a1);color:white;border:none}
+  .stage{padding:8px 10px;border-radius:8px;background:var(--glass);display:inline-block;font-weight:600}
+  footer{margin-top:18px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">SS</div>
+    <div>
+      <h1>Sluta Snusa — Din fria tracker</h1>
+      <div class="small">Spåra dagar, pengar, humör, faser och milstolpar — helt gratis, allt lagrat lokalt.</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: Main content -->
+    <div>
+      <div class="card" id="mainCard">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="muted">Sedan</div>
+            <div id="daysText" class="big">0 dagar</div>
+            <div class="muted">Nuvarande fas: <span id="stageBadge" class="stage">—</span></div>
+          </div>
+          <div style="text-align:right">
+            <div class="muted">Pengar sparade</div>
+            <div id="moneyText" class="big">0 kr</div>
+            <div class="muted" id="weeklyCostText"></div>
+          </div>
+        </div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid #eef6ff">
+
+        <!-- Quit date + cost inputs -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px">
+            <label for="quitDate">Datum du slutade/planerar att sluta</label>
+            <input id="quitDate" type="date" />
+          </div>
+          <div style="width:140px">
+            <label for="cansPerWeek">Burkar / vecka</label>
+            <input id="cansPerWeek" type="number" min="0" step="1" value="7" />
+          </div>
+          <div style="width:140px">
+            <label for="costPerCan">Kostnad / burk (kr)</label>
+            <input id="costPerCan" type="number" min="0" step="0.1" value="60" />
+          </div>
+          <div style="align-self:end">
+            <button class="btn" id="savePrefs">Spara</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="muted">Lägg till dagens humör</label>
+          <div class="mood-grid" id="moodButtons">
+            <button class="mood-btn" data-mood="1">😢 Dåligt</button>
+            <button class="mood-btn" data-mood="2">😕 Lite jobbigt</button>
+            <button class="mood-btn" data-mood="3">😐 Okej</button>
+            <button class="mood-btn" data-mood="4">🙂 Bra</button>
+            <button class="mood-btn" data-mood="5">😄 Fantastiskt</button>
+          </div>
+          <div style="margin-top:8px" id="moodSaved" class="muted"></div>
+        </div>
+
+        <div style="margin-top:14px">
+          <label class="muted">Milstolpar</label>
+          <div class="milestones" id="milestones"></div>
+        </div>
+
+        <div style="margin-top:14px">
+          <label class="muted">Progress över tid</label>
+          <canvas id="chart" width="800" height="240"></canvas>
+        </div>
+      </div>
+
+      <!-- Mood history & quick actions -->
+      <div class="card" style="margin-top:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Humörhistorik</strong><div class="muted">Senaste posterna</div></div>
+          <div>
+            <button class="btn" id="exportBtn">Exportera (JSON)</button>
+            <button class="btn" id="clearBtn" style="background:#e05b5b;margin-left:8px">Rensa allt</button>
+          </div>
+        </div>
+
+        <div id="moodList" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Sidebar -->
+    <aside>
+      <div class="card">
+        <div class="muted">Hjälp & snabbinfo</div>
+        <p class="small">Appen använder lokalt lagrade data i din webbläsare (localStorage). Den kan användas offline och kostar inget. Om du rensar webbläsardata tas allt bort.</p>
+
+        <hr>
+
+        <div>
+          <div class="muted">Fasförklaring</div>
+          <ul class="small">
+            <li><strong>0–3 dagar:</strong> Akut, stark sug + irritabilitet.</li>
+            <li><strong>4–14 dagar:</strong> Stabilisering, sug minskar.</li>
+            <li><strong>15–30 dagar:</strong> Vanor bryts — bättre kontroll.</li>
+            <li><strong>31–90 dagar:</strong> Betydande förbättring, färre återfall.</li>
+            <li><strong>90+ dagar:</strong> Långsiktig återhämtning.</li>
+          </ul>
+        </div>
+
+        <hr>
+
+        <div>
+          <div class="muted">Tips</div>
+          <ol class="small">
+            <li>Fira små vinster — belöna dig själv när du når milstolpar.</li>
+            <li>Skriv ner triggers — undvik dem när möjligt.</li>
+            <li>Använd humörloggen för att se mönster (vilka dagar är svårast?).</li>
+          </ol>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <div>Instruktioner: Sätt datum i fältet "Datum du slutade", ange burkar/vecka och kostnad per burk, klicka "Spara". Tryck på en humörknapp för att spara dagens humör. Data sparas i din webbläsare.</div>
+  </footer>
+</div>
+
+<script>
+/* --------------------
+   Storage helpers
+   -------------------- */
+const STORAGE_KEY = 'sluta_snusa_v1';
+function loadState(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw) return {prefs:{quitDate:null,cansPerWeek:7,costPerCan:60}, moods:{}};
+  try{return JSON.parse(raw)}catch(e){return {prefs:{quitDate:null,cansPerWeek:7,costPerCan:60}, moods:{}}}
+}
+function saveState(s){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+
+/* --------------------
+   Utilities
+   -------------------- */
+function daysBetween(dateStr){
+  if(!dateStr) return 0;
+  const a = new Date(dateStr+'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = today.getTime() - a.getTime();
+  const days = Math.floor(diff / (24*60*60*1000));
+  return Math.max(0, days);
+}
+// Money formula (digit-by-digit mentality):
+// weeklyCost = cansPerWeek * costPerCan
+// saved = daysWithout * (weeklyCost / 7)
+function computeMoneySaved(days, cansPerWeek, costPerCan){
+  // ensure numeric
+  const cpw = Number(cansPerWeek) || 0;
+  const cpc = Number(costPerCan) || 0;
+  // multiply carefully
+  const weekly = cpw * cpc; // exact in JS for typical small decimals
+  const perDay = weekly / 7;
+  const saved = days * perDay;
+  // round to 2 decimals
+  return Math.round(saved*100)/100;
+}
+
+/* --------------------
+   Withdrawal stages
+   -------------------- */
+function stageForDays(d){
+  if(d<=3) return {label:'Akut (0–3d)', color:'#e05b5b'};
+  if(d<=14) return {label:'Stabilisering (4–14d)', color:'#f5a623'};
+  if(d<=30) return {label:'Vana bryts (15–30d)', color:'#ffd166'};
+  if(d<=90) return {label:'Förbättring (31–90d)', color:'#2aa66a'};
+  return {label:'Långsiktig (90+d)', color:'#2aa66a'};
+}
+
+/* --------------------
+   UI wiring
+   -------------------- */
+let state = loadState();
+
+const quitDateInput = document.getElementById('quitDate');
+const cansInput = document.getElementById('cansPerWeek');
+const costInput = document.getElementById('costPerCan');
+const saveBtn = document.getElementById('savePrefs');
+const daysText = document.getElementById('daysText');
+const moneyText = document.getElementById('moneyText');
+const weeklyCostText = document.getElementById('weeklyCostText');
+const stageBadge = document.getElementById('stageBadge');
+const moodButtons = document.getElementById('moodButtons');
+const moodSaved = document.getElementById('moodSaved');
+const moodList = document.getElementById('moodList');
+const milestonesDiv = document.getElementById('milestones');
+
+function initUI(){
+  // prefs
+  if(state.prefs){
+    if(state.prefs.quitDate) quitDateInput.value = state.prefs.quitDate;
+    cansInput.value = state.prefs.cansPerWeek ?? 7;
+    costInput.value = state.prefs.costPerCan ?? 60;
+  }
+  updateAll();
+}
+saveBtn.addEventListener('click', ()=>{
+  state.prefs.quitDate = quitDateInput.value || null;
+  state.prefs.cansPerWeek = Number(cansInput.value) || 0;
+  state.prefs.costPerCan = Number(costInput.value) || 0;
+  saveState(state);
+  updateAll();
+});
+
+/* Mood buttons */
+moodButtons.querySelectorAll('.mood-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const mood = Number(btn.dataset.mood);
+    const todayStr = (new Date()).toISOString().slice(0,10);
+    state.moods[todayStr] = {mood, ts:Date.now()};
+    saveState(state);
+    moodSaved.textContent = 'Sparat humör för ' + todayStr;
+    renderMoodList();
+    updateChart();
+    updateMilestones();
+  });
+});
+
+/* Export & Clear */
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sluta_snusa_export.json'; document.body.appendChild(a);
+  a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  if (!confirm('Rensa allt? Detta tar bort all lokal data.')) return;
+  state = {prefs:{quitDate:null,cansPerWeek:7,costPerCan:60},moods:{}};
+  saveState(state);
+  initUI();
+});
+
+/* --------------------
+   Milestones
+   -------------------- */
+const MILESTONES = [
+  {label:'1 dag', days:1},
+  {label:'2 dagar', days:2},
+  {label:'1 vecka', days:7},
+  {label:'1 månad', days:30},
+  {label:'3 månader', days:90},
+  {label:'6 månader', days:180},
+  {label:'1 år', days:365},
+];
+function updateMilestones(){
+  const days = daysBetween(state.prefs.quitDate);
+  milestonesDiv.innerHTML = '';
+  MILESTONES.forEach(m=>{
+    const el = document.createElement('div');
+    el.classList.add('mile');
+    if(days >= m.days) el.classList.add('done');
+    el.textContent = m.label + (days >= m.days ? ' ✓' : '');
+    milestonesDiv.appendChild(el);
+  });
+}
+
+/* --------------------
+   Mood list
+   -------------------- */
+function renderMoodList(){
+  const entries = Object.entries(state.moods).sort((a,b)=> b[0].localeCompare(a[0]));
+  if(entries.length === 0) { moodList.innerHTML = '<div class="muted">Inga poster ännu</div>'; return; }
+  const html = entries.slice(0,10).map(([date,data])=>{
+    const m = ['','😢','😕','😐','🙂','😄'][data.mood] || '—';
+    const d = new Date(data.ts);
+    const time = d.toLocaleString();
+    return `<div style="padding:8px;border-radius:8px;margin-bottom:6px;border:1px solid #eef6ff;background:#fbfdff;display:flex;justify-content:space-between">
+      <div><strong>${date}</strong><div class="muted">${time}</div></div>
+      <div style="text-align:right">${m}</div>
+    </div>`;
+  }).join('');
+  moodList.innerHTML = html;
+}
+
+/* --------------------
+   Chart (money saved over time + mood markers)
+   -------------------- */
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+
+function updateChart(){
+  // clear
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // prepare timeseries: from quitDate to today
+  if(!state.prefs.quitDate){
+    ctx.fillStyle = '#a3b9cc';
+    ctx.font = '14px Inter';
+    ctx.fillText('Sätt datum för att se grafen', 16, 40);
+    return;
+  }
+  const start = new Date(state.prefs.quitDate + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = Math.floor((today - start)/(24*60*60*1000));
+  const points = [];
+  for(let i=0;i<=days;i++){
+    const d = new Date(start.getTime() + i*24*60*60*1000);
+    const dd = d.toISOString().slice(0,10);
+    const saved = computeMoneySaved(i, state.prefs.cansPerWeek, state.prefs.costPerCan);
+    const mood = (state.moods[dd] && state.moods[dd].mood) || null;
+    points.push({day:i, date:dd, saved, mood});
+  }
+  // scales
+  const pad = 36;
+  const w = canvas.width - pad*2;
+  const h = canvas.height - pad*2;
+  const maxSaved = Math.max(1, ...points.map(p=>p.saved));
+  // draw axes
+  ctx.strokeStyle = '#e6f0fb'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, pad+h); ctx.lineTo(pad+w, pad+h); ctx.stroke();
+  // grid lines and labels
+  ctx.fillStyle = '#8fa6bf'; ctx.font = '12px Inter';
+  for(let i=0;i<=4;i++){
+    const y = pad + (h * i/4);
+    ctx.strokeStyle = '#f1f6fb'; ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(pad+w, y); ctx.stroke();
+    const val = Math.round(maxSaved*(1 - i/4));
+    ctx.fillText(val + ' kr', 6, y+4);
+  }
+  // line path
+  ctx.beginPath(); ctx.lineWidth = 2;
+  for(let i=0;i<points.length;i++){
+    const x = pad + (i/(Math.max(1,points.length-1))) * w;
+    const y = pad + (1 - points[i].saved / maxSaved) * h;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle = '#2b9bd7'; ctx.stroke();
+  // fill under line
+  ctx.lineTo(pad+w, pad+h); ctx.lineTo(pad, pad+h); ctx.closePath();
+  ctx.fillStyle = 'rgba(43,155,215,0.08)'; ctx.fill();
+
+  // draw mood dots on top
+  for(let i=0;i<points.length;i++){
+    const p = points[i];
+    if(!p.mood) continue;
+    const x = pad + (i/(Math.max(1,points.length-1))) * w;
+    const y = pad + (1 - p.saved / maxSaved) * h;
+    // mood mapping to color/emoji
+    const moodEmoji = ['','😢','😕','😐','🙂','😄'][p.mood] || '•';
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x,y,11,0,2*Math.PI); ctx.fill();
+    ctx.font = '12px Arial'; ctx.fillText(moodEmoji, x-7, y+5);
+    ctx.strokeStyle = '#e6f0fb'; ctx.stroke();
+  }
+
+  // draw last point label
+  const last = points[points.length-1];
+  ctx.fillStyle = '#0f1724'; ctx.font = '13px Inter';
+  ctx.fillText('Idag: ' + last.saved + ' kr sparat', pad + 6, pad + h + 20);
+}
+
+/* --------------------
+   Update display
+   -------------------- */
+function updateAll(){
+  // ensure prefs exist
+  state.prefs = state.prefs || {quitDate:null,cansPerWeek:7,costPerCan:60};
+  saveState(state);
+
+  const days = daysBetween(state.prefs.quitDate);
+  daysText.textContent = days + (days === 1 ? ' dag' : ' dagar');
+
+  const saved = computeMoneySaved(days, state.prefs.cansPerWeek, state.prefs.costPerCan);
+  moneyText.textContent = saved.toLocaleString('sv-SE', {minimumFractionDigits:0, maximumFractionDigits:2}) + ' kr';
+
+  const weekly = (Number(state.prefs.cansPerWeek) || 0) * (Number(state.prefs.costPerCan) || 0);
+  weeklyCostText.textContent = weekly ? `Beräknad veckokostnad: ${weekly} kr` : '';
+
+  // stage
+  const st = stageForDays(days);
+  stageBadge.textContent = st.label;
+  stageBadge.style.background = st.color;
+  stageBadge.style.color = '#fff';
+
+  renderMoodList();
+  updateMilestones();
+  updateChart();
+}
+
+/* init */
+initUI();
+
+/* ensure chart redraw on resize */
+window.addEventListener('resize', ()=>{
+  // keep canvas pixel size consistent with display size
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * ratio;
+  canvas.height = canvas.clientHeight * ratio;
+  ctx.setTransform(ratio,0,0,ratio,0,0);
+  updateChart();
+});
+// initial resize adjustment
+(function adjustCanvas(){
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * ratio;
+  canvas.height = canvas.clientHeight * ratio;
+  ctx.setTransform(ratio,0,0,ratio,0,0);
+  updateChart();
+})();
+
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sluta Snusa</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f4f8;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+
+    header {
+      background: #4CAF50;
+      padding: 20px;
+      text-align: center;
+      color: white;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .container {
+      width: 90%;
+      max-width: 500px;
+      margin: 30px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #4CAF50;
+    }
+
+    .stat {
+      margin: 15px 0;
+      padding: 15px;
+      background: #e9f6eb;
+      border-left: 5px solid #4CAF50;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<header>Sluta Snusa</header>
+
+<div class="container">
+  <h2>Dina framsteg</h2>
+
+  <div class="stat">
+    Dagar utan snus: <span id="days"></span>
+  </div>
+
+  <div class="stat">
+    Pengar sparade: <span id="money"></span> kr
+  </div>
+
+  <div class="stat">
+    Din nuvarande fas: <span id="stage"></span>
+  </div>
+</div>
+
+<script>
+  // Här kan du lägga in din logik för beräkningar
+  document.getElementById("days").innerText = "0";
+  document.getElementById("money").innerText = "0";
+  document.getElementById("stage").innerText = "Avgiftningsfas";
+</script>
+
+</body>
+</html>
